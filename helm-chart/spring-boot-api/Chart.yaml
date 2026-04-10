@@ -1,0 +1,8 @@
+apiVersion: v2
+name: spring-boot-api
+description: Spring Boot API Helm Chart for InPost platform
+type: application
+# Helm Chart version
+version: 1.0.0
+# Information about the application
+appVersion: "stable"
