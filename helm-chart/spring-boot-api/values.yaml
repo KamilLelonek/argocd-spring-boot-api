@@ -1,0 +1,38 @@
+# Default values - overridden per environment in environments/{env}/values.yaml
+
+image:
+  repository: busybox
+  tag: stable
+  # Always: correct policy for mutable tags like `stable` or `latest`.
+  # IfNotPresent would cache the old image on a node indefinitely even if
+  # the tag now points to a newer digest. Always forces a registry check
+  # on every pod start. Use IfNotPresent only with immutable tags (e.g. SHAs).
+  pullPolicy: Always
+
+# Overridden per environment: 3 (dev) / 5 (prd)
+replicaCount: 1
+
+# Spring profile passed as container arg
+springProfile: dev
+
+ingress:
+  className: nginx
+  host: ""  # Required; set per environment
+  tls:
+    secretName: ""
+    clusterIssuer: ""
+
+secretStore:
+  name: aws-secrets-manager
+  secretPath: ""  # Required; set per environment
+
+pdb:
+  minAvailable: 1
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
