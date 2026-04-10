@@ -1,0 +1,190 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: { { include "spring-boot-api.fullname" . } }
+  labels: { { - include "spring-boot-api.labels" . | nindent 4 } }
+  annotations:
+    # Sync wave 1: applied after ExternalSecret (wave 0) is Ready.
+    # ArgoCD waits for all wave-0 resources to reach Healthy status before
+    # starting wave 1. ESO marks ExternalSecret Healthy only after it has
+    # successfully created the target Kubernetes Secret. This prevents the
+    # pod from starting before the Secret exists (CreateContainerConfigError).
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  replicas: { { .Values.replicaCount } }
+  selector:
+    matchLabels:
+      { { - include "spring-boot-api.selectorLabels" . | nindent 6 } }
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # maxUnavailable: 0 - never terminate a pod before its replacement is Ready.
+      # Default is 25%, which Kubernetes floors: floor(5 * 0.25) = 1 for prd's 5 replicas,
+      # meaning one pod could be terminated before its replacement is Ready. Explicit 0 is safe
+      # regardless of replica count.
+      maxUnavailable: 0
+      # maxSurge: 1 - allow one extra pod during rollout.
+      # Without this, maxUnavailable:0 + maxSurge:0 would deadlock (can't add or remove).
+      maxSurge: 1
+  template:
+    metadata:
+      labels: { { - include "spring-boot-api.selectorLabels" . | nindent 8 } }
+      annotations:
+        # TRAP: checksum annotations must be on spec.template.metadata (pod template),
+        # NOT on the Deployment's own metadata. Only pod template changes trigger rollouts.
+        checksum/configmap:
+          {
+            {
+              include (print $.Template.BasePath "/configmap.yaml") . | sha256sum,
+            },
+          }
+        checksum/externalsecret:
+          {
+            {
+              include (print $.Template.BasePath "/externalsecret.yaml") . | sha256sum,
+            },
+          }
+    spec:
+      # Must be > preStop sleep (5s) + app shutdown time.
+      # kubelet sends SIGKILL after this period regardless of preStop state,
+      # so set high enough for the slowest graceful shutdown you expect.
+      terminationGracePeriodSeconds: 60
+
+      # Pod-level security context: applies to all containers and volumes.
+      # runAsNonRoot: rejects images that run as UID 0 (root).
+      # seccompProfile RuntimeDefault: applies the container runtime's default syscall
+      # filter (blocks ~100 dangerous syscalls). Available since K8s 1.22.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        # fsGroup omitted: only relevant for PVC mounts (sets GID ownership on volume files).
+        # Our volumes are ConfigMap (0644, world-readable) and emptyDir (0777) - no effect.
+        seccompProfile:
+          type: RuntimeDefault
+
+      # topologySpreadConstraints: spreads pods across nodes so a single node failure
+      # doesn't take down all replicas. maxSkew:1 means at most 1 pod difference
+      # between any two nodes. DoNotSchedule blocks new pods if the constraint
+      # can't be satisfied (prefer ScheduleAnyway in smaller clusters if this
+      # causes pending pods due to insufficient nodes).
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              { { - include "spring-boot-api.selectorLabels" . | nindent 14 } }
+
+      containers:
+        - name: spring-boot-api
+          # busybox per task spec - replace with actual Spring Boot image in production.
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: { { .Values.image.pullPolicy } }
+
+          # args append to ENTRYPOINT (java -jar app.jar), not replace it.
+          # Using `command` instead would override ENTRYPOINT and break the image.
+          args:
+            - "--spring.profiles.active={{ .Values.springProfile }}"
+
+          # Container-level security context: narrower scope than pod-level.
+          # allowPrivilegeEscalation: false - prevents setuid/setgid escalation.
+          # readOnlyRootFilesystem: true - container cannot write anywhere except
+          # explicitly mounted volumes. Forces /tmp to be an explicit emptyDir.
+          # capabilities drop ALL: removes all Linux capabilities (CAP_NET_BIND,
+          # CAP_SYS_PTRACE, etc.). Add back only what the app explicitly needs.
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+
+          ports:
+            - name: api
+              containerPort: 8080
+            - name: logs
+              containerPort: 8081
+            - name: soap
+              containerPort: 8082
+
+          env:
+            - name: POD_IP
+              valueFrom:
+                # Downward API: injects pod metadata at runtime.
+                # status.podIP is unavailable at deploy time - only known after scheduling.
+                fieldRef:
+                  fieldPath: status.podIP
+
+          # envFrom injects all Secret keys as env vars.
+          # TRAP: pod fails with CreateContainerConfigError if Secret doesn't exist yet.
+          # Solved by sync wave: Deployment (wave 1) starts only after ExternalSecret
+          # (wave 0) is Ready, meaning ESO has already created the Secret.
+          envFrom:
+            - secretRef:
+                name: { { include "spring-boot-api.fullname" . } }
+
+          # startupProbe: runs during container startup ONLY.
+          # Liveness and readiness probes are suspended until startupProbe succeeds.
+          # failureThreshold * periodSeconds = maximum startup budget (30 * 10s = 5 min).
+          # Eliminates the initialDelaySeconds guessing game for slow Spring Boot starts
+          # (DB migrations, heavy bean initialization). Once startupProbe succeeds,
+          # liveness takes over with its own cadence.
+          startupProbe:
+            tcpSocket:
+              port: 8080
+            failureThreshold: 30
+            periodSeconds: 10
+
+          # livenessProbe: "is the process alive?" - failure restarts the container.
+          # Only active after startupProbe succeeds, so no risk of killing a slow start.
+          livenessProbe:
+            tcpSocket:
+              port: 8080
+            periodSeconds: 20
+
+          # readinessProbe: "should this pod receive traffic?" - failure removes pod
+          # from Service endpoints without restarting. Container keeps running but isolated.
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+            periodSeconds: 10
+
+          resources: { { - toYaml .Values.resources | nindent 12 } }
+
+          volumeMounts:
+            - name: config
+              mountPath: /app/config.json
+              # subPath mounts a single ConfigMap key as a file.
+              # Without it, the entire /app/ directory is replaced by a tmpfs
+              # containing only ConfigMap keys - hiding the app JAR and other files.
+              subPath: config.json
+            # Required by readOnlyRootFilesystem: Spring Boot writes temp files to /tmp
+            # (Tomcat work dir, JVM scratch space). Without this, the container crashes
+            # on startup with a read-only filesystem error.
+            - name: tmp
+              mountPath: /tmp
+
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  # RACE CONDITION FIX: pod deletion triggers two async operations:
+                  # (a) SIGTERM sent to container, (b) pod removed from Service endpoints.
+                  # Without sleep, SIGTERM fires before kube-proxy propagates the endpoint
+                  # removal, causing in-flight requests to hit a terminating pod.
+                  # sleep 5 covers the endpoint propagation lag before initiating shutdown.
+                  #
+                  # `|| true` prevents a non-zero exit from blocking termination until
+                  # terminationGracePeriodSeconds expires (e.g. if app is already down).
+                  - "sleep 5 && wget -q -O- http://localhost:8080/service/shutdown || true"
+
+      volumes:
+        - name: config
+          configMap:
+            name: { { include "spring-boot-api.fullname" . } }
+        - name: tmp
+          # emptyDir: ephemeral disk-backed volume, cleared on pod restart.
+          # Scoped to the pod lifecycle - not shared between pods.
+          # Use `medium: Memory` to back with RAM (tmpfs) at the cost of node memory.
+          emptyDir: {}
