@@ -1,0 +1,39 @@
+# ClusterIssuers are cluster-level cert-manager resources.
+# Managed by the platform team, not per-application.
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    # Let's Encrypt sends expiry warnings here.
+    email: platform@inpost.pl
+    privateKeySecretRef:
+      # cert-manager stores the ACME account private key in this Secret.
+      # Name is arbitrary but must be unique per issuer.
+      name: letsencrypt-staging-account-key
+    solvers:
+      - http01:
+          # HTTP-01 solver: cert-manager creates a temporary Ingress to serve the
+          # ACME challenge token at /.well-known/acme-challenge/<token>.
+          # Requires: domain publicly resolvable + port 80 reachable by LE servers.
+          # For private/internal domains use dns01 solver instead.
+          ingress:
+            ingressClassName: nginx
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: platform@inpost.pl
+    privateKeySecretRef:
+      name: letsencrypt-prod-account-key
+    solvers:
+      - http01:
+          ingress:
+            ingressClassName: nginx
