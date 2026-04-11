@@ -12,16 +12,25 @@ spec:
 
   generators:
     # List generator: explicit, auditable set of environments.
+    # Alternatives: cluster generator (label-based auto-discovery),
+    # matrix/merge (combine generators for more complex fan-out).
     - list:
         elements:
           - env: dev
+            # clusterName must match the --name used in: argocd cluster add <ctx> --name <name>
+            # Terraform output `argocd_cluster_add_command` uses the EKS cluster name as both
+            # the context and the --name, so this value equals var.cluster_name from Terraform.
             clusterName: dev-global-cluster-0
-            server: https://dev-global-cluster-0.k8s.inpost.pl
+            # HEAD: dev always tracks the latest chart commit.
+            # Fast feedback on chart changes before they reach production.
             chartRevision: HEAD
           - env: prd
             clusterName: prd-global-cluster-5
-            server: https://prd-global-cluster-5.k8s.inpost.pl
-            chartRevision: v1.0.0
+            # PATTERN: pin prd to a specific git tag so chart changes require an
+            # explicit version bump to reach production (no accidental rollouts).
+            # Replace v1.0.0 with an actual tag that exists in the repo.
+            # In practice: create the tag on release, bump this value in a PR.
+            chartRevision: v1.0.0  # TODO: replace with real tag before first deploy
 
   template:
     metadata:
@@ -29,31 +38,47 @@ spec:
     spec:
       project: spring-boot
 
+      # Multi-source (ArgoCD >= 2.6): separates chart (HOW) from values (WHAT).
+      # Platform team owns helm-chart/, app team owns environments/.
       sources:
         - repoURL: https://github.com/inpost/spring-boot-api
+          # Per-env revision: dev gets HEAD, prd gets a pinned tag.
           targetRevision: "{{ .chartRevision }}"
           path: helm-chart/spring-boot-api
           helm:
             valueFiles:
+              # $values references the second source (ref: values).
+              # Only multi-source makes cross-source value files possible.
               - $values/environments/{{ .env }}/values.yaml
 
+        # Values source always tracks HEAD so env config changes deploy immediately
+        # without a chart version bump. The chart version controls template changes;
+        # values control runtime config (replicas, hosts, secrets paths).
         - repoURL: https://github.com/inpost/spring-boot-api
           targetRevision: HEAD
           ref: values
 
       destination:
-        server: "{{ .server }}"
+        # name references the cluster by its registered ArgoCD name (from argocd cluster add --name).
+        # Avoids hardcoding the EKS API endpoint URL, which is only known after provisioning.
+        name: "{{ .clusterName }}"
         namespace: spring-boot-api
 
       syncPolicy:
         automated:
+          # Remove Kubernetes resources deleted from Git.
           prune: true
+          # Re-sync when live state drifts from Git (manual edits, external changes).
           selfHeal: true
         syncOptions:
           - CreateNamespace=true
+        # Retry on transient failures: CRD not yet installed, API server blip,
+        # ESO not ready, etc. Without retry, a failed sync stays OutOfSync
+        # permanently until manually triggered.
         retry:
           limit: 3
           backoff:
             duration: 5s
+            # Exponential backoff: 5s, 10s, 20s.
             factor: 2
             maxDuration: 3m
