@@ -1,0 +1,18 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "spring-boot-api.fullname" . }}
+  labels:
+    {{- include "spring-boot-api.labels" . | nindent 4 }}
+spec:
+  # minAvailable: minimum pods that must remain Running during voluntary disruptions
+  # (node drains, cluster upgrades, kubectl delete pod).
+  #
+  # WHY THIS IS NECESSARY: Deployment rollingUpdate strategy (maxUnavailable:0) only
+  # governs Deployment-controlled rollouts. Node evictions go through the Eviction API
+  # directly to the ReplicaSet, bypassing the Deployment strategy entirely. Without a
+  # PDB, all pods can be evicted simultaneously during a node drain, causing full outage.
+  minAvailable: {{ .Values.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "spring-boot-api.selectorLabels" . | nindent 6 }}
