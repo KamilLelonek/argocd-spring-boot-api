@@ -1,0 +1,59 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: spring-boot-api
+  namespace: argocd
+spec:
+  # Go templates (ArgoCD >= 2.5) over legacy fasttemplate {{env}} syntax.
+  # Supports conditionals, range loops, pipelines.
+  goTemplate: true
+  # Fail loudly on undefined keys instead of silently substituting empty strings.
+  goTemplateOptions: ["missingkey=error"]
+
+  generators:
+    # List generator: explicit, auditable set of environments.
+    - list:
+        elements:
+          - env: dev
+            clusterName: dev-global-cluster-0
+            server: https://dev-global-cluster-0.k8s.inpost.pl
+            chartRevision: HEAD
+          - env: prd
+            clusterName: prd-global-cluster-5
+            server: https://prd-global-cluster-5.k8s.inpost.pl
+            chartRevision: v1.0.0
+
+  template:
+    metadata:
+      name: spring-boot-api-{{ .env }}
+    spec:
+      project: spring-boot
+
+      sources:
+        - repoURL: https://github.com/inpost/spring-boot-api
+          targetRevision: "{{ .chartRevision }}"
+          path: helm-chart/spring-boot-api
+          helm:
+            valueFiles:
+              - $values/environments/{{ .env }}/values.yaml
+
+        - repoURL: https://github.com/inpost/spring-boot-api
+          targetRevision: HEAD
+          ref: values
+
+      destination:
+        server: "{{ .server }}"
+        namespace: spring-boot-api
+
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+        retry:
+          limit: 3
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m
