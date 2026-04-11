@@ -1,0 +1,65 @@
+{{- $svcName := include "spring-boot-api.fullname" . }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $svcName }}
+  labels:
+    {{- include "spring-boot-api.labels" . | nindent 4 }}
+  {{- if .Values.ingress.tls.clusterIssuer }}
+  annotations:
+    # cert-manager watches Ingress resources for this annotation.
+    # When found, it creates a CertificateRequest, runs the ACME challenge
+    # (HTTP-01 via the ingress controller by default), and writes the issued
+    # cert+key into spec.tls[].secretName below. Renewal is automatic.
+    #
+    # ClusterIssuer vs Issuer: ClusterIssuer is cluster-scoped, usable from any
+    # namespace. Issuer is namespace-scoped - use when different namespaces need
+    # different ACME accounts or CA configs.
+    #
+    # Staging vs prod issuer:
+    # - letsencrypt-staging: untrusted cert, but ~3000x higher rate limits.
+    #   Use for dev/testing to avoid hitting prod rate limits (50 certs/week/domain).
+    # - letsencrypt-prod: browser-trusted cert. Use for production only.
+    #
+    # NOTE: HTTP-01 challenge requires the domain to be publicly resolvable and
+    # port 80 reachable by Let's Encrypt servers. .local / private domains require
+    # DNS-01 challenge instead (configure via spec.acme.solvers in the ClusterIssuer).
+    cert-manager.io/cluster-issuer: {{ .Values.ingress.tls.clusterIssuer | quote }}
+  {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+
+  {{- if .Values.ingress.tls.secretName }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host }}
+      # cert-manager writes the issued certificate into this Secret.
+      # The name is arbitrary but should be unique per app+env to avoid collisions.
+      secretName: {{ .Values.ingress.tls.secretName }}
+  {{- end }}
+
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $svcName }}
+                port:
+                  number: 8080
+          - path: /logs
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $svcName }}
+                port:
+                  number: 8081
+          - path: /soap
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $svcName }}
+                port:
+                  number: 8082
