@@ -1,0 +1,10 @@
+replicaCount: 3
+ingress:
+  host: api.dev.inpost.pl
+  tls:
+    secretName: spring-boot-api-dev-tls
+    # Staging issuer: issues untrusted certs but has ~3000x higher rate limits than prod.
+    # Safe to iterate on TLS config in dev without burning through the 50 certs/week limit.
+    clusterIssuer: letsencrypt-staging
+secretStore:
+  secretPath: /spring-boot-api/dev/credentials

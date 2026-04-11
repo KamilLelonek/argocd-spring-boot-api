@@ -1,0 +1,11 @@
+replicaCount: 5
+springProfile: prd
+ingress:
+  host: api.prd.inpost.pl
+  tls:
+    secretName: spring-boot-api-prd-tls
+    # Prod issuer: browser-trusted cert. Rate-limited to 50 certs/week per domain.
+    # Validate the full flow with letsencrypt-staging first before switching here.
+    clusterIssuer: letsencrypt-prod
+secretStore:
+  secretPath: /spring-boot-api/prd/credentials
