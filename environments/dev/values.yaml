@@ -1,4 +1,5 @@
 replicaCount: 3
+springProfile: dev
 ingress:
   host: api.dev.inpost.pl
   tls:

@@ -12,20 +12,28 @@ image:
 # Overridden per environment: 3 (dev) / 5 (prd)
 replicaCount: 1
 
-# Spring profile passed as container arg
-springProfile: dev
+# Spring profile passed as container arg. Required; set per environment.
+springProfile: ""
 
 ingress:
   className: nginx
   host: ""  # Required; set per environment
   tls:
+    # secretName: cert-manager writes the issued cert into this Secret.
+    # nginx-ingress reads it for TLS termination. Leave empty to disable TLS.
     secretName: ""
+    # clusterIssuer: name of the cert-manager ClusterIssuer that signs the cert.
+    # Set to letsencrypt-staging (dev) or letsencrypt-prod (prd).
+    # Leave empty if managing certs externally (pre-provisioned Secret).
     clusterIssuer: ""
 
 secretStore:
   name: aws-secrets-manager
   secretPath: ""  # Required; set per environment
 
+# PodDisruptionBudget: minimum pods that must remain available during voluntary
+# disruptions (node drains, cluster upgrades). Protects against Eviction API
+# bypassing the Deployment rolling strategy.
 pdb:
   minAvailable: 1
 
