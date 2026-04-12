@@ -12,8 +12,7 @@ data:
   config.json: |
     {
       "app": {
-        "name": "spring-boot-api",
-        "profile": "{{ .Values.springProfile }}"
+        "name": "spring-boot-api"
       },
       "server": {
         "port": 8080
