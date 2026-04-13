@@ -12,7 +12,11 @@ spec:
   # governs Deployment-controlled rollouts. Node evictions go through the Eviction API
   # directly to the ReplicaSet, bypassing the Deployment strategy entirely. Without a
   # PDB, all pods can be evicted simultaneously during a node drain, causing full outage.
-  minAvailable: {{ .Values.pdb.minAvailable }}
+  #
+  # TRAP: minAvailable: 1 with replicaCount: 1 allows 0 disruptions - node drain hangs
+  # indefinitely waiting for a pod slot that never opens. maxUnavailable: 1 is always
+  # safe: at most 1 pod evicted regardless of replica count.
+  maxUnavailable: {{ .Values.pdb.maxUnavailable }}
   selector:
     matchLabels:
       {{- include "spring-boot-api.selectorLabels" . | nindent 6 }}

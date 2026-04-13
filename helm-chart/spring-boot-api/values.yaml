@@ -31,11 +31,12 @@ secretStore:
   name: aws-secrets-manager
   secretPath: ""  # Required; set per environment
 
-# PodDisruptionBudget: minimum pods that must remain available during voluntary
-# disruptions (node drains, cluster upgrades). Protects against Eviction API
-# bypassing the Deployment rolling strategy.
+# PodDisruptionBudget: governs voluntary disruptions (node drains, cluster upgrades).
+# Uses maxUnavailable rather than minAvailable: minAvailable:1 + replicaCount:1
+# allows 0 evictions and hangs node drains indefinitely. maxUnavailable:1 is
+# always safe - at most 1 pod evicted regardless of replica count.
 pdb:
-  minAvailable: 1
+  maxUnavailable: 1
 
 resources:
   requests:
