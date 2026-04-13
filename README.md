@@ -111,8 +111,7 @@ sources:
     targetRevision: HEAD                     # env values always at HEAD
 ```
 
-`$values` is an ArgoCD 2.6+ feature. Without it, values files must live inside the chart
-directory. With it, `helm-chart/` and `environments/` are fully independent -- separate
+`$values` keeps `helm-chart/` and `environments/` fully independent -- separate
 ownership, separate review gates. Values always come from HEAD so config changes (replicas,
 hosts) deploy without requiring a chart version bump.
 
