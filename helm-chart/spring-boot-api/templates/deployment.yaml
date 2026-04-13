@@ -5,11 +5,10 @@ metadata:
   labels:
     {{- include "spring-boot-api.labels" . | nindent 4 }}
   annotations:
-    # Sync wave 1: applied after ExternalSecret (wave 0) is Ready.
-    # ArgoCD waits for all wave-0 resources to reach Healthy status before
-    # starting wave 1. ESO marks ExternalSecret Healthy only after it has
-    # successfully created the target Kubernetes Secret. This prevents the
-    # pod from starting before the Secret exists (CreateContainerConfigError).
+    # Sync wave 1: applied after Secret (wave 0) exists.
+    # ArgoCD applies wave-0 resources first and waits for them to reach Healthy
+    # status before starting wave 1. This prevents the pod from starting before
+    # the Secret exists (CreateContainerConfigError).
     argocd.argoproj.io/sync-wave: "1"
 spec:
   replicas: {{ .Values.replicaCount }}
@@ -35,7 +34,7 @@ spec:
         # TRAP: checksum annotations must be on spec.template.metadata (pod template),
         # NOT on the Deployment's own metadata. Only pod template changes trigger rollouts.
         checksum/configmap: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
-        checksum/externalsecret: {{ include (print $.Template.BasePath "/externalsecret.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
     spec:
       # Must be > preStop sleep (5s) + app shutdown time.
       # kubelet sends SIGKILL after this period regardless of preStop state,
@@ -108,8 +107,8 @@ spec:
 
           # envFrom injects all Secret keys as env vars.
           # TRAP: pod fails with CreateContainerConfigError if Secret doesn't exist yet.
-          # Solved by sync wave: Deployment (wave 1) starts only after ExternalSecret
-          # (wave 0) is Ready, meaning ESO has already created the Secret.
+          # Solved by sync wave: Deployment (wave 1) starts only after Secret (wave 0)
+          # has been applied by ArgoCD.
           envFrom:
             - secretRef:
                 name: {{ include "spring-boot-api.fullname" . }}

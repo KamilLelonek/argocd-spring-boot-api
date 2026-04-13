@@ -27,10 +27,6 @@ ingress:
     # Leave empty if managing certs externally (pre-provisioned Secret).
     clusterIssuer: ""
 
-secretStore:
-  name: aws-secrets-manager
-  secretPath: ""  # Required; set per environment
-
 # PodDisruptionBudget: governs voluntary disruptions (node drains, cluster upgrades).
 # Uses maxUnavailable rather than minAvailable: minAvailable:1 + replicaCount:1
 # allows 0 evictions and hangs node drains indefinitely. maxUnavailable:1 is
