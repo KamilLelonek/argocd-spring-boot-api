@@ -38,14 +38,13 @@ Different teams, different review gates, same repository.
 
 ## Prerequisites
 
-Both clusters are provisioned and configured by `terraform/`. Before applying the
-ApplicationSet, the following must be true on each cluster:
+Before applying the ApplicationSet, the following must be true on each cluster:
 
 - nginx ingress, cert-manager, and ArgoCD are installed
 - `argocd/cluster-issuers.yaml` is applied (configures cert-manager Let's Encrypt issuers)
 
-Both clusters must be registered in the central ArgoCD instance. Terraform outputs the
-exact command; the `--name` must match `clusterName` in `applicationset.yaml`:
+Both clusters must be registered in the central ArgoCD instance. The `--name` must match
+`clusterName` in `applicationset.yaml`:
 
 ```bash
 argocd cluster add <context-name> --name dev-global-cluster-0
@@ -291,7 +290,7 @@ evicted simultaneously during a `kubectl drain`, regardless of `maxUnavailable`.
 | Chart revision (prd) | tag pin | No accidental rollouts. Prod changes on explicit version bump. |
 | Values revision | HEAD | Config changes (replicas, hosts) deploy without a chart version bump. |
 | Namespace | `spring-boot-api` | Created automatically by ArgoCD `CreateNamespace=true`. |
-| ArgoCD project | `spring-boot` | Logical grouping. Created by Terraform (`kubectl_manifest.argocd_project`). |
+| ArgoCD project | `spring-boot` | Logical grouping. Must exist in ArgoCD before the ApplicationSet is applied. |
 | Ingress class | `nginx` | Standard. Change via `ingress.className` value. |
 | Secret storage | Helm `randAlphaNum` + `lookup` | Generated on first install, preserved on upgrades. No external dependency. See limitations in Secret Management section. |
 | TLS issuer (dev) | letsencrypt-staging | High rate limits. Safe for iteration. Cert is browser-untrusted. |
@@ -304,7 +303,7 @@ evicted simultaneously during a `kubectl drain`, regardless of `maxUnavailable`.
 
 cert-manager's HTTP-01 challenge requires the app hostnames to be publicly resolvable and
 port 80 reachable by Let's Encrypt servers before TLS issuance works. Create DNS A records
-pointing to the nginx ingress LoadBalancer IP (available in Terraform output) before deploying:
+pointing to the nginx ingress LoadBalancer IP before deploying:
 
 - `api.dev.inpost.pl` -> ingress LoadBalancer (dev cluster)
 - `api.prd.inpost.pl` -> ingress LoadBalancer (prd cluster)
