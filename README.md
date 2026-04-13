@@ -92,7 +92,7 @@ destination:
 ```
 
 **List Generator**: Explicit, auditable. You see exactly which clusters exist and what
-revision each runs. The alternative (Cluster Generator) auto-discovers clusters by label.
+revision each runs.
 
 **Pinning prd to a tag**: With `HEAD`, any chart commit would reach prod immediately.
 A tag means prod only changes when someone bumps the tag in a PR -- deliberate promotion,
@@ -285,7 +285,7 @@ evicted simultaneously during a `kubectl drain`, regardless of `maxUnavailable`.
 |----------|--------|--------|
 | Image | `busybox:stable` | Per task spec. Replace with the actual Spring Boot image. |
 | Image pull policy | `Always` | Mutable tag `stable` requires a fresh registry check on every pod start. Use `IfNotPresent` only with immutable tags (SHA digests). |
-| ArgoCD generator | List | Explicit, auditable. Cluster Generator auto-discovers by label. |
+| ArgoCD generator | List | Explicit, auditable. Every cluster and its revision is visible in one place. |
 | Chart revision (dev) | HEAD | Fast feedback: chart changes reach dev immediately. |
 | Chart revision (prd) | tag pin | No accidental rollouts. Prod changes on explicit version bump. |
 | Values revision | HEAD | Config changes (replicas, hosts) deploy without a chart version bump. |
