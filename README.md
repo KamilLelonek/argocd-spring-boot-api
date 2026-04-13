@@ -11,6 +11,7 @@ cert-manager + Let's Encrypt.
 ```
 spring-boot-api/
 ├── argocd/
+│   ├── argocd-project.yaml       # AppProject scoping the app to its own repo and namespace
 │   ├── applicationset.yaml       # Deploys the app to both clusters
 │   └── cluster-issuers.yaml      # Tells cert-manager how to issue TLS certs (Let's Encrypt)
 ├── helm-chart/
@@ -38,10 +39,19 @@ Different teams, different review gates, same repository.
 
 ## Prerequisites
 
-Before applying the ApplicationSet, the following must be true on each cluster:
+Infrastructure is provisioned by the terraform repo. After `terraform apply` completes,
+apply the ArgoCD config in order:
 
-- nginx ingress, cert-manager, and ArgoCD are installed
-- `argocd/cluster-issuers.yaml` is applied (configures cert-manager Let's Encrypt issuers)
+```bash
+# 1. Create the AppProject (scopes the app to its own repo/namespace)
+kubectl apply -f argocd/argocd-project.yaml
+
+# 2. Create the cert-manager ClusterIssuers (required for TLS)
+kubectl apply -f argocd/cluster-issuers.yaml
+
+# 3. Create the ApplicationSet (triggers ArgoCD to deploy the app)
+kubectl apply -f argocd/applicationset.yaml
+```
 
 Both clusters must be registered in the central ArgoCD instance. The `--name` must match
 `clusterName` in `applicationset.yaml`:

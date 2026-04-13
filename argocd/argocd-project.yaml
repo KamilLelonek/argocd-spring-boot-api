@@ -1,0 +1,22 @@
+# AppProject: scopes the spring-boot-api ApplicationSet to its own repo and namespace.
+# Prevents accidental cross-project resource creation.
+#
+# Apply once after the ArgoCD Helm release is ready:
+#   kubectl apply -f argocd/argocd-project.yaml -n argocd
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: spring-boot
+  namespace: argocd
+spec:
+  description: Spring Boot API
+  sourceRepos:
+    - https://github.com/inpost/spring-boot-api
+  destinations:
+    # '*' allows any registered cluster - required because the ApplicationSet
+    # targets clusters by name, not by a fixed server URL known at authoring time.
+    - namespace: spring-boot-api
+      server: "*"
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
