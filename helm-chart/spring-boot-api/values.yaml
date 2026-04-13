@@ -47,5 +47,7 @@ resources:
     cpu: 100m
     memory: 128Mi
   limits:
-    cpu: 500m
+    # CPU limit omitted intentionally: limits cause throttling even when the node has
+    # headroom, increasing latency. Only memory limit is set - OOMKill is preferable
+    # to CPU starvation. Set cpu limit only if noisy-neighbour isolation is required.
     memory: 256Mi
