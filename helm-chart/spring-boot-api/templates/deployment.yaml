@@ -68,7 +68,6 @@ spec:
 
       containers:
         - name: spring-boot-api
-          # busybox per task spec - replace with actual Spring Boot image in production.
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
 

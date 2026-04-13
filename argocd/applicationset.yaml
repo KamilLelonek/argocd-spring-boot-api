@@ -26,11 +26,10 @@ spec:
             chartRevision: HEAD
           - env: prd
             clusterName: prd-global-cluster-5
-            # PATTERN: pin prd to a specific git tag so chart changes require an
-            # explicit version bump to reach production (no accidental rollouts).
-            # Replace v1.0.0 with an actual tag that exists in the repo.
-            # In practice: create the tag on release, bump this value in a PR.
-            chartRevision: v1.0.0  # TODO: replace with real tag before first deploy
+            # Pin prd to a specific git tag so chart changes require an explicit
+            # version bump to reach production. Create the tag on release and
+            # bump this value in a PR - no accidental rollouts.
+            chartRevision: v1.0.0
 
   template:
     metadata:

@@ -176,8 +176,8 @@ kubectl delete secret spring-boot-api -n spring-boot-api
 argocd app sync spring-boot-api-dev
 ```
 
-For production workloads, replace this with ESO + AWS Secrets Manager for controlled,
-auditable rotation and no credentials in Helm history.
+This approach trades operational simplicity (no external dependency, no IRSA setup)
+for weaker auditability. The limitations above are the known trade-offs of that choice.
 
 ### TLS (cert-manager + Let's Encrypt)
 
@@ -292,7 +292,7 @@ evicted simultaneously during a `kubectl drain`, regardless of `maxUnavailable`.
 
 | Decision | Choice | Reason |
 |----------|--------|--------|
-| Image | `busybox:stable` | Per task spec. Replace with the actual Spring Boot image. |
+| Image | `busybox:stable` | Placeholder image. Override `image.repository` and `image.tag` in environment values. |
 | Image pull policy | `Always` | Mutable tag `stable` requires a fresh registry check on every pod start. Use `IfNotPresent` only with immutable tags (SHA digests). |
 | ArgoCD generator | List | Explicit, auditable. Every cluster and its revision is visible in one place. |
 | Chart revision (dev) | HEAD | Fast feedback: chart changes reach dev immediately. |
