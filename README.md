@@ -95,7 +95,7 @@ destination:
 revision each runs.
 
 **Pinning prd to a tag**: With `HEAD`, any chart commit would reach prod immediately.
-A tag means prod only changes when someone bumps the tag in a PR -- deliberate promotion,
+A tag means prod only changes when someone bumps the tag in a PR: deliberate promotion,
 no accidental rollouts.
 
 ### Multi-Source (values outside the chart directory)
@@ -111,7 +111,7 @@ sources:
     targetRevision: HEAD                     # env values always at HEAD
 ```
 
-`$values` keeps `helm-chart/` and `environments/` fully independent -- separate
+`$values` keeps `helm-chart/` and `environments/` fully independent: separate
 ownership, separate review gates. Values always come from HEAD so config changes (replicas,
 hosts) deploy without requiring a chart version bump.
 
@@ -204,7 +204,7 @@ Kubernetes default is 25% `maxUnavailable`, floored. With prd's 5 replicas:
 `floor(5 * 0.25) = 1`, allowing one pod to be terminated before its replacement is Ready.
 Explicit `0` is safe regardless of replica count.
 
-`maxSurge: 1` is required: `maxUnavailable: 0` + `maxSurge: 0` deadlocks -- the rollout
+`maxSurge: 1` is required: `maxUnavailable: 0` + `maxSurge: 0` deadlocks the rollout
 cannot add a pod (no surge) and cannot remove a pod (none available to spare).
 
 ### Graceful Shutdown
@@ -239,22 +239,22 @@ Three probe types work together:
   endpoints without restarting. Pod keeps running but receives no requests.
 
 Because startupProbe handles the startup window, liveness and readiness need no
-`initialDelaySeconds` -- they activate immediately after startupProbe succeeds.
+`initialDelaySeconds`; they activate immediately after startupProbe succeeds.
 
 ### Security
 
 **Pod-level** (applies to all containers):
-- `runAsNonRoot: true` -- rejects images that run as UID 0.
-- `runAsUser: 1000` -- explicit UID, does not rely on image default.
-- `seccompProfile: RuntimeDefault` -- enables the container runtime's default syscall
+- `runAsNonRoot: true`: rejects images that run as UID 0.
+- `runAsUser: 1000`: explicit UID, does not rely on image default.
+- `seccompProfile: RuntimeDefault`: enables the container runtime's default syscall
   filter, blocking ~100 dangerous syscalls. Requires K8s >= 1.22.
 
 **Container-level**:
-- `readOnlyRootFilesystem: true` -- the container cannot write anywhere except explicitly
+- `readOnlyRootFilesystem: true`: the container cannot write anywhere except explicitly
   mounted volumes. Spring Boot needs `/tmp` for Tomcat work files, so an `emptyDir` is
   mounted there.
-- `allowPrivilegeEscalation: false` -- prevents setuid/setgid privilege escalation.
-- `capabilities.drop: ["ALL"]` -- removes all Linux capabilities. A plain HTTP server
+- `allowPrivilegeEscalation: false`: prevents setuid/setgid privilege escalation.
+- `capabilities.drop: ["ALL"]`: removes all Linux capabilities. A plain HTTP server
   needs none of them.
 
 ### High Availability
@@ -263,7 +263,7 @@ Because startupProbe handles the startup window, liveness and readiness need no
 
 **topologySpreadConstraints**: distributes pods across nodes so a single node failure
 loses at most one or two pods. `maxSkew: 1` = at most 1 pod difference between any two
-nodes. `DoNotSchedule` blocks new pods if the constraint cannot be met -- switch to
+nodes. `DoNotSchedule` blocks new pods if the constraint cannot be met; switch to
 `ScheduleAnyway` in clusters with fewer nodes than replicas.
 
 **PodDisruptionBudget** (`policy/v1`): guarantees minimum 1 pod stays Running during
