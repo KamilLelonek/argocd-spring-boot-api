@@ -1,8 +1,9 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: { { include "spring-boot-api.fullname" . } }
-  labels: { { - include "spring-boot-api.labels" . | nindent 4 } }
+  name: {{ include "spring-boot-api.fullname" . }}
+  labels:
+    {{- include "spring-boot-api.labels" . | nindent 4 }}
   annotations:
     # Sync wave 1: applied after ExternalSecret (wave 0) is Ready.
     # ArgoCD waits for all wave-0 resources to reach Healthy status before
@@ -11,10 +12,10 @@ metadata:
     # pod from starting before the Secret exists (CreateContainerConfigError).
     argocd.argoproj.io/sync-wave: "1"
 spec:
-  replicas: { { .Values.replicaCount } }
+  replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      { { - include "spring-boot-api.selectorLabels" . | nindent 6 } }
+      {{- include "spring-boot-api.selectorLabels" . | nindent 6 }}
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -28,22 +29,13 @@ spec:
       maxSurge: 1
   template:
     metadata:
-      labels: { { - include "spring-boot-api.selectorLabels" . | nindent 8 } }
+      labels:
+        {{- include "spring-boot-api.selectorLabels" . | nindent 8 }}
       annotations:
         # TRAP: checksum annotations must be on spec.template.metadata (pod template),
         # NOT on the Deployment's own metadata. Only pod template changes trigger rollouts.
-        checksum/configmap:
-          {
-            {
-              include (print $.Template.BasePath "/configmap.yaml") . | sha256sum,
-            },
-          }
-        checksum/externalsecret:
-          {
-            {
-              include (print $.Template.BasePath "/externalsecret.yaml") . | sha256sum,
-            },
-          }
+        checksum/configmap: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/externalsecret: {{ include (print $.Template.BasePath "/externalsecret.yaml") . | sha256sum }}
     spec:
       # Must be > preStop sleep (5s) + app shutdown time.
       # kubelet sends SIGKILL after this period regardless of preStop state,
@@ -73,13 +65,13 @@ spec:
           whenUnsatisfiable: DoNotSchedule
           labelSelector:
             matchLabels:
-              { { - include "spring-boot-api.selectorLabels" . | nindent 14 } }
+              {{- include "spring-boot-api.selectorLabels" . | nindent 14 }}
 
       containers:
         - name: spring-boot-api
           # busybox per task spec - replace with actual Spring Boot image in production.
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: { { .Values.image.pullPolicy } }
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
 
           # args append to ENTRYPOINT (java -jar app.jar), not replace it.
           # Using `command` instead would override ENTRYPOINT and break the image.
@@ -120,7 +112,7 @@ spec:
           # (wave 0) is Ready, meaning ESO has already created the Secret.
           envFrom:
             - secretRef:
-                name: { { include "spring-boot-api.fullname" . } }
+                name: {{ include "spring-boot-api.fullname" . }}
 
           # startupProbe: runs during container startup ONLY.
           # Liveness and readiness probes are suspended until startupProbe succeeds.
@@ -128,6 +120,9 @@ spec:
           # Eliminates the initialDelaySeconds guessing game for slow Spring Boot starts
           # (DB migrations, heavy bean initialization). Once startupProbe succeeds,
           # liveness takes over with its own cadence.
+          # NOTE: HTTP probes against /actuator/health verify app readiness semantically.
+          # tcpSocket only confirms the port is open - the app could still be initializing.
+          # Switch to httpGet + /actuator/health/liveness once the real image is in use.
           startupProbe:
             tcpSocket:
               port: 8080
@@ -148,7 +143,8 @@ spec:
               port: 8080
             periodSeconds: 10
 
-          resources: { { - toYaml .Values.resources | nindent 12 } }
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
 
           volumeMounts:
             - name: config
@@ -182,7 +178,7 @@ spec:
       volumes:
         - name: config
           configMap:
-            name: { { include "spring-boot-api.fullname" . } }
+            name: {{ include "spring-boot-api.fullname" . }}
         - name: tmp
           # emptyDir: ephemeral disk-backed volume, cleared on pod restart.
           # Scoped to the pod lifecycle - not shared between pods.
