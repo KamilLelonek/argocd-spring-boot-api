@@ -38,6 +38,10 @@ secretStore:
 pdb:
   maxUnavailable: 1
 
+# Logging level for config.json. Override per environment (DEBUG in dev, INFO in prd).
+logging:
+  level: INFO
+
 resources:
   requests:
     cpu: 100m

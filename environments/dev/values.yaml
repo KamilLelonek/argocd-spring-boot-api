@@ -1,5 +1,7 @@
 replicaCount: 3
 springProfile: dev
+logging:
+  level: DEBUG
 ingress:
   host: api.dev.inpost.pl
   tls:
