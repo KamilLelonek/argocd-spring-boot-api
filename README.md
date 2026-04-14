@@ -329,3 +329,60 @@ helm template prd helm-chart/spring-boot-api -f environments/prd/values.yaml
 # Lint for errors
 helm lint helm-chart/spring-boot-api -f environments/dev/values.yaml
 ```
+
+---
+
+## FAQ
+
+**Why Helm `lookup` + `randAlphaNum` instead of External Secrets Operator?**
+
+Operational simplicity. ESO requires an OIDC provider, an IRSA IAM role, a `SecretStore`
+manifest, and an `ExternalSecret` manifest per secret - all of which need to exist and be
+healthy before the first pod starts. `lookup` has no external dependencies and no operator
+to run. The trade-offs are documented in the Secret Management section above: no audit trail,
+rotation is a manual delete + sync, and CI dry-runs (`helm template`) always generate
+ephemeral values. For production workloads with compliance requirements, ESO + AWS Secrets
+Manager is the right answer. For this scope, the simpler approach was chosen deliberately.
+
+**Why `maxUnavailable: 0` instead of the Kubernetes default (25%)?**
+
+With 5 production replicas, `floor(5 x 0.25) = 1` - the default still allows one pod to
+be terminated before its replacement is Ready, creating a brief capacity dip. Explicit `0`
+guarantees no pod is removed until its replacement passes the readiness probe, regardless of
+replica count. It requires `maxSurge >= 1` to avoid deadlock (can't add a pod, can't remove
+a pod).
+
+**Why is there a `startupProbe` in addition to liveness and readiness?**
+
+Spring Boot startup (DB migrations, bean initialization) can take 30-60 seconds. Without a
+startup probe you either set a large `initialDelaySeconds` on liveness (guesswork, wastes
+time on fast restarts) or risk the liveness probe killing a healthy pod that is still
+initializing. The startup probe suspends liveness and readiness until the port opens,
+giving the app a 5-minute budget (`failureThreshold: 30 x periodSeconds: 10`) with no
+guesswork required.
+
+**Why is `preStop` needed if Kubernetes already sends SIGTERM?**
+
+Pod deletion triggers two async operations simultaneously: SIGTERM to the container, and
+removal of the pod from Service endpoints. Endpoint removal takes a few seconds to propagate
+through kube-proxy. Without the `sleep 5` delay, SIGTERM fires before propagation completes
+and in-flight requests hit a terminating pod. The sleep covers this lag before the shutdown
+endpoint is called.
+
+**How do I rotate a secret?**
+
+```bash
+kubectl delete secret <release-name> -n spring-boot-api
+argocd app sync spring-boot-api-<env>
+```
+
+ArgoCD triggers a Helm upgrade. `lookup` finds no existing Secret, `randAlphaNum` generates
+fresh values, and the Deployment rolls out because the checksum annotation changes.
+
+**Why are values in `environments/` and the chart in `helm-chart/` in the same repo?**
+
+The requirement allows "different place or repository." Using a single repo with separate
+paths satisfies the intent: chart and values have independent revision tracking. The chart
+is pinned to a tag in production (`chartRevision: v1.0.0`) while values always track HEAD.
+Config changes (replica count, hostnames) deploy without bumping the chart version. In a
+larger team this would split into two repos with separate ownership and review gates.
